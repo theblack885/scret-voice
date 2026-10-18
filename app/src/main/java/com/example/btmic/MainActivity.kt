@@ -1,6 +1,7 @@
 package com.example.btmic
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioDeviceCallback
@@ -10,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -56,6 +58,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,17 +82,22 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 import kotlin.math.sin
 
-private val Cyan = Color(0xFF4FD1FF)
-private val Violet = Color(0xFF8B5CF6)
-private val Pink = Color(0xFFFF4ECD)
-private val Green = Color(0xFF34E39B)
-private val BgBrush = Brush.verticalGradient(
+val Cyan = Color(0xFF4FD1FF)
+val Violet = Color(0xFF8B5CF6)
+val Pink = Color(0xFFFF4ECD)
+val Green = Color(0xFF34E39B)
+val BgBrush = Brush.verticalGradient(
     listOf(Color(0xFF070712), Color(0xFF130F2B), Color(0xFF05060F))
 )
+
+fun hasMicPermission(ctx: Context): Boolean =
+    ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) ==
+        PackageManager.PERMISSION_GRANTED
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        BtMicState.load(this)
         enableEdgeToEdge()
         setContent {
             MaterialTheme(
@@ -105,11 +113,100 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun BtMicScreen() {
     val ctx = LocalContext.current
+    var tab by remember { mutableIntStateOf(0) }
     var btName by remember { mutableStateOf<String?>(null) }
+    val player = remember { AudioPlayer() }
+    DisposableEffect(Unit) { onDispose { player.stop() } }
+
+    // Earbuds connect / disconnect dekhna. Connect hote hi app apne aap shuru.
+    DisposableEffect(Unit) {
+        val am = ctx.getSystemService(AudioManager::class.java)
+        fun update(allowAutoStart: Boolean) {
+            val d = findBtOutput(am)
+            val name = d?.let { it.productName?.toString()?.ifBlank { null } ?: "Bluetooth earbuds" }
+            val justConnected = btName == null && name != null
+            btName = name
+            if (justConnected && allowAutoStart && BtMicState.autoStart &&
+                !BtMicState.running && hasMicPermission(ctx)
+            ) {
+                try {
+                    ctx.startForegroundService(Intent(ctx, MicService::class.java))
+                } catch (_: Exception) {
+                }
+            }
+        }
+        val cb = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>?) = update(true)
+            override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>?) = update(false)
+        }
+        am.registerAudioDeviceCallback(cb, Handler(Looper.getMainLooper()))
+        update(false)
+        onDispose { am.unregisterAudioDeviceCallback(cb) }
+    }
+
+    Box(Modifier.fillMaxSize().background(BgBrush)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            Box(Modifier.weight(1f)) {
+                when (tab) {
+                    0 -> LiveTab(btName)
+                    1 -> RecordingsTab(player)
+                    else -> HistoryTab(player)
+                }
+            }
+            BottomBar(tab) { player.stop(); tab = it }
+        }
+    }
+}
+
+@Composable
+fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
+    val items = listOf("Live", "Recordings", "History")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(28.dp))
+            .padding(6.dp)
+    ) {
+        items.forEachIndexed { i, label ->
+            val sel = i == selected
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        if (sel) Brush.linearGradient(listOf(Cyan, Violet))
+                        else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                    )
+                    .clickable { onSelect(i) }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label,
+                    color = if (sel) Color.White else Color.White.copy(alpha = 0.6f),
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LiveTab(btName: String?) {
+    val ctx = LocalContext.current
     var running by remember { mutableStateOf(BtMicState.running) }
     var level by remember { mutableFloatStateOf(0f) }
+    var recording by remember { mutableStateOf(false) }
+    var recordOn by remember { mutableStateOf(BtMicState.record) }
+    var recSecs by remember { mutableIntStateOf(0) }
+
     var voiceOnly by remember { mutableStateOf(BtMicState.voiceOnly) }
     var blockOthers by remember { mutableStateOf(BtMicState.blockOthers) }
+    var autoRecord by remember { mutableStateOf(BtMicState.autoRecord) }
+    var autoStart by remember { mutableStateOf(BtMicState.autoStart) }
     var gain by remember { mutableFloatStateOf(BtMicState.gain) }
 
     val perms = remember {
@@ -132,25 +229,13 @@ fun BtMicScreen() {
         if (m.isNotEmpty()) permLauncher.launch(m)
     }
 
-    // Bluetooth earbuds connect / disconnect live dekhna
-    DisposableEffect(Unit) {
-        val am = ctx.getSystemService(AudioManager::class.java)
-        fun update() {
-            val d = findBtOutput(am)
-            btName = d?.let { it.productName?.toString()?.ifBlank { null } ?: "Bluetooth earbuds" }
-        }
-        val cb = object : AudioDeviceCallback() {
-            override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>?) = update()
-            override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>?) = update()
-        }
-        am.registerAudioDeviceCallback(cb, Handler(Looper.getMainLooper()))
-        update()
-        onDispose { am.unregisterAudioDeviceCallback(cb) }
-    }
-
     LaunchedEffect(Unit) {
         while (true) {
             running = BtMicState.running
+            recordOn = BtMicState.record
+            recording = BtMicState.currentRecPath != null
+            val start = BtMicState.recStartMs
+            recSecs = if (start > 0L) ((SystemClock.elapsedRealtime() - start) / 1000).toInt() else 0
             level = level * 0.6f + BtMicState.level * 0.4f
             delay(50)
         }
@@ -170,100 +255,176 @@ fun BtMicScreen() {
         ctx.startForegroundService(Intent(ctx, MicService::class.java))
     }
 
-    Box(Modifier.fillMaxSize().background(BgBrush)) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(Modifier.height(8.dp))
-            Text("BT Mic", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "Sirf aapki awaaz. Seedha earbuds me.",
-                color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp
-            )
-            Spacer(Modifier.height(18.dp))
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(8.dp))
+        Text("BT Mic", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "Sirf aapki awaaz. Seedha earbuds me.",
+            color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp
+        )
+        Spacer(Modifier.height(18.dp))
 
-            // Device card
-            Glass {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(12.dp).clip(CircleShape)
-                            .background(if (btName != null) Green else Color.Gray)
+        Glass {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(12.dp).clip(CircleShape)
+                        .background(if (btName != null) Green else Color.Gray)
+                )
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(
+                        if (btName != null) "Connected" else "Koi earbuds connected nahi",
+                        color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp
                     )
-                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text(
-                            if (btName != null) "Connected" else "Koi earbuds connected nahi",
-                            color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp
-                        )
-                        Text(
-                            btName ?: "Pair karo aur connect karo",
-                            color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    TextButton(onClick = {
-                        ctx.startActivity(
-                            Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    }) { Text("Pair", color = Cyan, fontWeight = FontWeight.Bold) }
+                    Text(
+                        btName ?: "Pair karo aur connect karo",
+                        color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold
+                    )
                 }
+                TextButton(onClick = {
+                    ctx.startActivity(
+                        Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }) { Text("Pair", color = Cyan, fontWeight = FontWeight.Bold) }
             }
+        }
 
-            Hero(running = running, level = level, onClick = { toggle() })
+        Hero(running = running, level = level, onClick = { toggle() })
 
-            Text(
-                when {
-                    running -> "Live hai. Ab bolo, awaaz earbuds me aa rahi hai"
-                    btName == null -> "Pehle Bluetooth earbuds connect karo"
-                    else -> "Shuru karne ke liye mic dabao"
-                },
-                color = Color.White.copy(alpha = 0.85f), fontSize = 15.sp, textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(10.dp))
-            Wave(running, level)
+        Text(
+            when {
+                running -> "Live hai. Ab bolo, awaaz earbuds me aa rahi hai"
+                btName == null -> "Pehle Bluetooth earbuds connect karo"
+                else -> "Shuru karne ke liye mic dabao"
+            },
+            color = Color.White.copy(alpha = 0.85f),
+            fontSize = 15.sp, textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(10.dp))
+        Wave(running, level)
+        Spacer(Modifier.height(14.dp))
+
+        RecBar(
+            running = running,
+            recording = recording,
+            recordOn = recordOn,
+            secs = recSecs,
+            onStop = { BtMicState.record = false; recordOn = false },
+            onStart = { BtMicState.record = true; recordOn = true }
+        )
+
+        Glass {
+            ToggleRow(
+                title = "Auto record",
+                sub = "Awaaz aate hi recording apne aap shuru ho",
+                checked = autoRecord
+            ) { autoRecord = it; BtMicState.autoRecord = it; BtMicState.save(ctx) }
+            Spacer(Modifier.height(14.dp))
+            ToggleRow(
+                title = "Earbuds connect hote hi shuru",
+                sub = "App khula ho to apne aap chalu ho jayega",
+                checked = autoStart
+            ) { autoStart = it; BtMicState.autoStart = it; BtMicState.save(ctx) }
+            Spacer(Modifier.height(14.dp))
+            ToggleRow(
+                title = "Sirf voice mode",
+                sub = "Shor hatao, sirf insaani awaaz jaane do",
+                checked = voiceOnly
+            ) { voiceOnly = it; BtMicState.voiceOnly = it; BtMicState.save(ctx) }
+            Spacer(Modifier.height(14.dp))
+            ToggleRow(
+                title = "Gaane aur dusri awaaz roko",
+                sub = "Music/video apps ko pause karwata hai",
+                checked = blockOthers
+            ) { blockOthers = it; BtMicState.blockOthers = it; BtMicState.save(ctx) }
             Spacer(Modifier.height(18.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Awaaz badhao", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("${"%.1f".format(gain)}x", color = Cyan, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            Slider(
+                value = gain,
+                onValueChange = { gain = it; BtMicState.gain = it },
+                onValueChangeFinished = { BtMicState.save(ctx) },
+                valueRange = 1f..4f,
+                colors = SliderDefaults.colors(
+                    thumbColor = Cyan,
+                    activeTrackColor = Violet,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.12f)
+                )
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Bluetooth me thoda delay hona normal hai.\nKuch apps focus ignore karte hain, unhe manually pause karo.",
+            color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp, textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+    }
+}
 
-            // Settings card
-            Glass {
-                ToggleRow(
-                    title = "Sirf voice mode",
-                    sub = "Shor hatao, sirf insaani awaaz jaane do",
-                    checked = voiceOnly
-                ) { voiceOnly = it; BtMicState.voiceOnly = it }
-                Spacer(Modifier.height(14.dp))
-                ToggleRow(
-                    title = "Gaane aur dusri awaaz roko",
-                    sub = "Music/video apps ko pause karwata hai",
-                    checked = blockOthers
-                ) { blockOthers = it; BtMicState.blockOthers = it }
-                Spacer(Modifier.height(18.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Awaaz badhao", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Text("${"%.1f".format(gain)}x", color = Cyan, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                }
-                Slider(
-                    value = gain,
-                    onValueChange = { gain = it; BtMicState.gain = it },
-                    valueRange = 1f..4f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Cyan,
-                        activeTrackColor = Violet,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.12f)
-                    )
+@Composable
+fun RecBar(
+    running: Boolean,
+    recording: Boolean,
+    recordOn: Boolean,
+    secs: Int,
+    onStop: () -> Unit,
+    onStart: () -> Unit
+) {
+    if (!running) return
+    val inf = rememberInfiniteTransition(label = "rec")
+    val blink by inf.animateFloat(
+        1f, 0.25f,
+        infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "blink"
+    )
+    Glass {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(14.dp).clip(CircleShape)
+                    .background(if (recording) Rose.copy(alpha = blink) else Color.Gray)
+            )
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(
+                    when {
+                        recording -> "REC  %d:%02d".format(secs / 60, secs % 60)
+                        recordOn -> "Awaaz ka intezaar..."
+                        else -> "Recording band hai"
+                    },
+                    color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
+                )
+                Text(
+                    when {
+                        recording -> "Awaaz record ho rahi hai"
+                        recordOn -> "Awaaz aate hi recording apne aap shuru hogi"
+                        else -> "Dabao to nayi recording shuru hogi"
+                    },
+                    color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp
                 )
             }
-            Spacer(Modifier.height(14.dp))
-            Text(
-                "Bluetooth me thoda delay hona normal hai.\nKuch apps focus ignore karte hain, unhe manually pause karo.",
-                color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp, textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(16.dp))
+            val pillColor = if (recordOn) Rose else Green
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(pillColor.copy(alpha = 0.18f))
+                    .border(1.dp, pillColor.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                    .clickable { if (recordOn) onStop() else onStart() }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (recordOn) "Band karo" else "Shuru karo",
+                    color = pillColor, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
+    Spacer(Modifier.height(14.dp))
 }
 
 @Composable
