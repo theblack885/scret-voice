@@ -108,6 +108,7 @@ class MicService : Service() {
         }
 
         am.registerAudioDeviceCallback(deviceCallback, handler)
+        BtMicState.record = BtMicState.autoRecord
         BtMicState.running = true
         loop = true
         worker = Thread { runAudio(btOut) }.also { it.start() }
@@ -150,7 +151,6 @@ class MicService : Service() {
             .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
             ?.let { rec.setPreferredDevice(it) }
 
-        // Voice saaf karne wale effects (jo phone support kare)
         val fx = mutableListOf<android.media.audiofx.AudioEffect>()
         try {
             if (NoiseSuppressor.isAvailable())
@@ -181,7 +181,6 @@ class MicService : Service() {
             .build()
         track.setPreferredDevice(btOut)
 
-        // Filter constants: high-pass 120 Hz, low-pass 6 kHz
         val dt = 1.0 / rate
         val rcHp = 1.0 / (2 * PI * 120.0)
         val hpA = (rcHp / (rcHp + dt)).toFloat()
@@ -193,12 +192,12 @@ class MicService : Service() {
         var gate = 0f
         var lastVoice = 0L
 
+        var wav: WavWriter? = null
         val buf = ShortArray(inMin / 2)
         try {
             rec.startRecording()
             track.play()
             while (loop) {
-                // Dusre apps ki awaaz roko / chhodo (UI toggle ke hisaab se)
                 val want = BtMicState.blockOthers
                 if (want != focusWanted) {
                     focusWanted = want
@@ -208,16 +207,18 @@ class MicService : Service() {
                 val n = rec.read(buf, 0, buf.size)
                 if (n <= 0) continue
                 val g = BtMicState.gain
+
+                // Awaaz aa rahi hai ya nahi (processing se pehle ki awaaz par)
+                var s0 = 0.0
+                for (i in 0 until n) s0 += buf[i].toDouble() * buf[i]
+                val rms0 = sqrt(s0 / n)
+                val now = SystemClock.elapsedRealtime()
+                val voiceNow = rms0 > gateThreshold
+                if (voiceNow) lastVoice = now
+
                 var outSum = 0.0
-
                 if (BtMicState.voiceOnly) {
-                    var s0 = 0.0
-                    for (i in 0 until n) s0 += buf[i].toDouble() * buf[i]
-                    val rms0 = sqrt(s0 / n)
-                    val now = SystemClock.elapsedRealtime()
-                    if (rms0 > gateThreshold) lastVoice = now
                     val target = if (now - lastVoice < 350) 1f else 0f
-
                     for (i in 0 until n) {
                         val x = buf[i].toFloat()
                         val hp = hpA * (yHp + x - x1)
@@ -239,9 +240,35 @@ class MicService : Service() {
 
                 BtMicState.level = ((sqrt(outSum / n) / 32768.0) * 6.0).toFloat().coerceIn(0f, 1f)
                 track.write(buf, 0, n)
+
+                // Recording: pehli awaaz aate hi apne aap shuru, "Band karo" dabane par band
+                try {
+                    if (BtMicState.record) {
+                        if (wav == null && voiceNow) {
+                            val f = RecStore.newFile(this)
+                            wav = WavWriter(f, rate)
+                            BtMicState.currentRecPath = f.path
+                            BtMicState.recStartMs = now
+                        }
+                        wav?.write(buf, n)
+                    } else if (wav != null) {
+                        wav?.close()
+                        wav = null
+                        BtMicState.currentRecPath = null
+                        BtMicState.recStartMs = 0L
+                    }
+                } catch (_: Exception) {
+                    wav = null
+                    BtMicState.currentRecPath = null
+                    BtMicState.recStartMs = 0L
+                    BtMicState.record = false
+                }
             }
         } catch (_: Exception) {
         } finally {
+            try { wav?.close() } catch (_: Exception) {}
+            BtMicState.currentRecPath = null
+            BtMicState.recStartMs = 0L
             try { rec.stop() } catch (_: Exception) {}
             rec.release()
             try { track.stop() } catch (_: Exception) {}
@@ -253,7 +280,7 @@ class MicService : Service() {
     override fun onDestroy() {
         loop = false
         focusWanted = false
-        worker?.join(700)
+        worker?.join(1000)
         handler.removeCallbacksAndMessages(null)
         abandonFocus()
         try { am.unregisterAudioDeviceCallback(deviceCallback) } catch (_: Exception) {}
