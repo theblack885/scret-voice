@@ -29,12 +29,16 @@ import android.os.SystemClock
 import kotlin.math.PI
 import kotlin.math.sqrt
 
-fun findBtOutput(am: AudioManager): AudioDeviceInfo? =
-    am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
-        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-            it.type == AudioDeviceInfo.TYPE_HEARING_AID ||
-            (Build.VERSION.SDK_INT >= 31 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET)
-    }
+fun isBtOutput(d: AudioDeviceInfo): Boolean =
+    d.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+        d.type == AudioDeviceInfo.TYPE_HEARING_AID ||
+        (Build.VERSION.SDK_INT >= 31 && d.type == AudioDeviceInfo.TYPE_BLE_HEADSET)
+
+// Jitne bhi Bluetooth earbuds output ke liye mile, sab
+fun findAllBtOutputs(am: AudioManager): List<AudioDeviceInfo> =
+    am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).filter { isBtOutput(it) }
+
+fun findBtOutput(am: AudioManager): AudioDeviceInfo? = findAllBtOutputs(am).firstOrNull()
 
 class MicService : Service() {
 
@@ -56,7 +60,7 @@ class MicService : Service() {
 
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-            // Earbuds hat gaye to band kar do, warna awaaz phone speaker se aayegi
+            // Sab earbuds hat gaye to band kar do, warna awaaz phone speaker se aayegi
             if (findBtOutput(am) == null) stopSelf()
         }
     }
@@ -134,6 +138,29 @@ class MicService : Service() {
         focusReq = null
     }
 
+    private fun buildTrack(rate: Int, outMin: Int, device: AudioDeviceInfo?): AudioTrack {
+        val t = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(rate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(outMin)
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+            .build()
+        if (device != null) t.setPreferredDevice(device)
+        return t
+    }
+
     private fun runAudio(btOut: AudioDeviceInfo) {
         val rate = 44100
         val inMin = AudioRecord.getMinBufferSize(
@@ -161,25 +188,19 @@ class MicService : Service() {
                 AcousticEchoCanceler.create(rec.audioSessionId)?.also { it.enabled = true; fx.add(it) }
         } catch (_: Exception) {}
 
-        val track = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(rate)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(outMin)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-            .build()
-        track.setPreferredDevice(btOut)
+        // Output: multi mode me sabhi earbuds ko, warna sirf pehle wale ko
+        val tracks: List<AudioTrack> = if (BtMicState.multi) {
+            val outs = findAllBtOutputs(am)
+            if (outs.size > 1) {
+                // Phone ne kai earbuds alag-alag dikhaye: har ek ko apna track
+                outs.map { buildTrack(rate, outMin, it) }
+            } else {
+                // Ek hi dikha: system ka Dual Audio / Audio sharing (agar ON ho) sambhal lega
+                listOf(buildTrack(rate, outMin, null))
+            }
+        } else {
+            listOf(buildTrack(rate, outMin, btOut))
+        }
 
         val dt = 1.0 / rate
         val rcHp = 1.0 / (2 * PI * 120.0)
@@ -196,7 +217,7 @@ class MicService : Service() {
         val buf = ShortArray(inMin / 2)
         try {
             rec.startRecording()
-            track.play()
+            for (t in tracks) t.play()
             while (loop) {
                 val want = BtMicState.blockOthers
                 if (want != focusWanted) {
@@ -239,7 +260,9 @@ class MicService : Service() {
                 }
 
                 BtMicState.level = ((sqrt(outSum / n) / 32768.0) * 6.0).toFloat().coerceIn(0f, 1f)
-                track.write(buf, 0, n)
+                for (t in tracks) {
+                    try { t.write(buf, 0, n) } catch (_: Exception) {}
+                }
 
                 // Recording: pehli awaaz aate hi apne aap shuru, "Band karo" dabane par band
                 try {
@@ -271,8 +294,10 @@ class MicService : Service() {
             BtMicState.recStartMs = 0L
             try { rec.stop() } catch (_: Exception) {}
             rec.release()
-            try { track.stop() } catch (_: Exception) {}
-            track.release()
+            for (t in tracks) {
+                try { t.stop() } catch (_: Exception) {}
+                t.release()
+            }
             fx.forEach { try { it.release() } catch (_: Exception) {} }
         }
     }
