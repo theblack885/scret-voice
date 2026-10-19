@@ -16,6 +16,7 @@ object BtMicState {
     @Volatile var blockOthers = true
     @Volatile var autoRecord = true
     @Volatile var autoStart = true
+    @Volatile var multi = true
 
     fun load(ctx: Context) {
         val p = ctx.getSharedPreferences("btmic", Context.MODE_PRIVATE)
@@ -24,6 +25,7 @@ object BtMicState {
         blockOthers = p.getBoolean("blockOthers", true)
         autoRecord = p.getBoolean("autoRecord", true)
         autoStart = p.getBoolean("autoStart", true)
+        multi = p.getBoolean("multi", true)
     }
 
     fun save(ctx: Context) {
@@ -33,6 +35,7 @@ object BtMicState {
             .putBoolean("blockOthers", blockOthers)
             .putBoolean("autoRecord", autoRecord)
             .putBoolean("autoStart", autoStart)
+            .putBoolean("multi", multi)
             .apply()
     }
 }
