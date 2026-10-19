@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         BtMicState.load(this)
+        WalkieState.load(this)
         enableEdgeToEdge()
         setContent {
             MaterialTheme(
@@ -115,6 +116,7 @@ fun BtMicScreen() {
     val ctx = LocalContext.current
     var tab by remember { mutableIntStateOf(0) }
     var btName by remember { mutableStateOf<String?>(null) }
+    var btCount by remember { mutableIntStateOf(0) }
     val player = remember { AudioPlayer() }
     DisposableEffect(Unit) { onDispose { player.stop() } }
 
@@ -122,12 +124,18 @@ fun BtMicScreen() {
     DisposableEffect(Unit) {
         val am = ctx.getSystemService(AudioManager::class.java)
         fun update(allowAutoStart: Boolean) {
-            val d = findBtOutput(am)
-            val name = d?.let { it.productName?.toString()?.ifBlank { null } ?: "Bluetooth earbuds" }
+            val list = findAllBtOutputs(am)
+            val name = if (list.isEmpty()) null else list.joinToString(" + ") {
+                it.productName?.toString()?.ifBlank { null } ?: "Bluetooth earbuds"
+            }
             val justConnected = btName == null && name != null
-            btName = name
+            // Walkie mode me earbuds ka output SCO ban jata hai, isliye naam na hatao
+            if (name != null || !WalkieState.running) {
+                btName = name
+                btCount = list.size
+            }
             if (justConnected && allowAutoStart && BtMicState.autoStart &&
-                !BtMicState.running && hasMicPermission(ctx)
+                !BtMicState.running && !WalkieState.running && hasMicPermission(ctx)
             ) {
                 try {
                     ctx.startForegroundService(Intent(ctx, MicService::class.java))
@@ -148,8 +156,9 @@ fun BtMicScreen() {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Box(Modifier.weight(1f)) {
                 when (tab) {
-                    0 -> LiveTab(btName)
-                    1 -> RecordingsTab(player)
+                    0 -> LiveTab(btName, btCount)
+                    1 -> WalkieTab(btName)
+                    2 -> RecordingsTab(player)
                     else -> HistoryTab(player)
                 }
             }
@@ -160,7 +169,7 @@ fun BtMicScreen() {
 
 @Composable
 fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
-    val items = listOf("Live", "Recordings", "History")
+    val items = listOf("Live", "Walkie", "Recordings", "History")
     Row(
         Modifier
             .fillMaxWidth()
@@ -187,7 +196,7 @@ fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
                 Text(
                     label,
                     color = if (sel) Color.White else Color.White.copy(alpha = 0.6f),
-                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -195,7 +204,7 @@ fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-fun LiveTab(btName: String?) {
+fun LiveTab(btName: String?, btCount: Int) {
     val ctx = LocalContext.current
     var running by remember { mutableStateOf(BtMicState.running) }
     var level by remember { mutableFloatStateOf(0f) }
@@ -207,6 +216,7 @@ fun LiveTab(btName: String?) {
     var blockOthers by remember { mutableStateOf(BtMicState.blockOthers) }
     var autoRecord by remember { mutableStateOf(BtMicState.autoRecord) }
     var autoStart by remember { mutableStateOf(BtMicState.autoStart) }
+    var multi by remember { mutableStateOf(BtMicState.multi) }
     var gain by remember { mutableFloatStateOf(BtMicState.gain) }
 
     val perms = remember {
@@ -246,6 +256,10 @@ fun LiveTab(btName: String?) {
             ctx.startService(Intent(ctx, MicService::class.java).setAction("STOP"))
             return
         }
+        if (WalkieState.running) {
+            Toast.makeText(ctx, "Pehle Walkie mode band karo", Toast.LENGTH_LONG).show()
+            return
+        }
         val m = missing()
         if (m.isNotEmpty()) { permLauncher.launch(m); return }
         if (btName == null) {
@@ -278,7 +292,11 @@ fun LiveTab(btName: String?) {
                 )
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(
-                        if (btName != null) "Connected" else "Koi earbuds connected nahi",
+                        when {
+                            btName == null -> "Koi earbuds connected nahi"
+                            btCount > 1 -> "$btCount earbuds connected"
+                            else -> "Connected"
+                        },
                         color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp
                     )
                     Text(
@@ -291,6 +309,13 @@ fun LiveTab(btName: String?) {
                         Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     )
                 }) { Text("Pair", color = Cyan, fontWeight = FontWeight.Bold) }
+            }
+            if (multi && btName != null && btCount < 2) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Dusra earbuds bhi connect karo. Dono me awaaz tabhi jayegi jab phone Dual Audio / Audio sharing support kare (Bluetooth settings me ON karo).",
+                    color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp
+                )
             }
         }
 
@@ -319,6 +344,12 @@ fun LiveTab(btName: String?) {
         )
 
         Glass {
+            ToggleRow(
+                title = "Ek se zyada earbuds",
+                sub = "Sabhi connected earbuds me awaaz bhejo (mic dubara shuru karne par lagu)",
+                checked = multi
+            ) { multi = it; BtMicState.multi = it; BtMicState.save(ctx) }
+            Spacer(Modifier.height(14.dp))
             ToggleRow(
                 title = "Auto record",
                 sub = "Awaaz aate hi recording apne aap shuru ho",
