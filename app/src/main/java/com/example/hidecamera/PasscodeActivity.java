@@ -1,6 +1,5 @@
 package com.example.hidecamera;
 
-// AndroidX ko hata kar standard Core Android Activity use ki hai
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -11,10 +10,13 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+// Sabse zaroori line: Aapke main app ke resources (R) ko import kiya gaya hai
+import com.example.btmic.R;
+
 public class PasscodeActivity extends Activity {
     private static final String MASTER_CODE = "1615";
     private static final int MAX_ATTEMPTS = 5;
-    private static final long LOCK_TIME_MS = 24 * 60 * 60 * 1000; // 24 Ghante
+    private static final long LOCK_TIME_MS = 24 * 60 * 60 * 1000;
 
     private EditText etPasscode;
     private TextView tvStatus;
@@ -66,7 +68,6 @@ public class PasscodeActivity extends Activity {
         if (input.equals(MASTER_CODE)) {
             prefs.edit().putInt("failed_attempts", 0).putLong("lockout_end_time", 0).apply();
             
-            // Sahi code par video gallery activity open hogi
             Intent intent = new Intent(PasscodeActivity.this, VideoGalleryActivity.class);
             startActivity(intent);
             finish();
