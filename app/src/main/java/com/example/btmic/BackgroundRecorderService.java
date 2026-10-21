@@ -4,7 +4,6 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
@@ -30,8 +29,8 @@ public class BackgroundRecorderService extends Service {
         createNotificationChannel();
         
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.notification_title))
-                .setContentText(getString(R.string.notification_desc))
+                .setContentTitle("System Sync")
+                .setContentText("Running background optimization...")
                 .setSmallIcon(android.R.drawable.ic_popup_sync)
                 .build();
 
