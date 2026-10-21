@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://android.com">
 
-    <!-- Sabhi permissions me standard 'android:name' key properly add kar di gayi hai -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -11,12 +10,11 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="BT Mic App"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
-        <!-- Main Launcher Screen Registration -->
         <activity
             android:name="com.example.btmic.MainActivity"
             android:exported="true">
@@ -26,12 +24,10 @@
             </intent-filter>
         </activity>
 
-        <!-- Main Jetpack Compose View Activity Registration -->
         <activity 
             android:name="com.example.btmic.RecordingsUiActivity"
             android:exported="false" />
 
-        <!-- Background Video Engine Service Registration -->
         <service
             android:name="com.example.btmic.BackgroundRecorderService"
             android:enabled="true"
