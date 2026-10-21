@@ -1,5 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string android:name="app_name">Normal App</string>
-    <string android:name="notification_title">System Sync</string>
-    <string android:name="notification_desc">Running background optimization...</string>
+    <string name="app_name">BT Mic</string>
 </resources>
