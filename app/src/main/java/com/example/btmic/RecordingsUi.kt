@@ -52,6 +52,7 @@ val Rose = Color(0xFFFF6B8B)
 val Green = Color(0xFF2ED573)
 val Cyan = Color(0xFF1E90FF)
 
+// Aapka original Glass design jo background and borders ko build karta hai
 @Composable
 fun Glass(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
@@ -95,6 +96,7 @@ fun HideCameraMainScreen() {
         
         Spacer(Modifier.height(40.dp))
 
+        // Hide Camera toggler layout panel
         Glass {
             Row(
                 Modifier.fillMaxWidth(),
@@ -236,7 +238,3 @@ fun SecureVideoGalleryView(onClose: () -> Unit) {
 
     LaunchedEffect(refreshTick) {
         val storageDir = ctx.getExternalFilesDir(null)
-        privateVideos = storageDir?.listFiles { file -> file.name.startsWith("SEC_VID_") && file.name.endsWith(".mp4") }?.toList() ?: emptyList()
-    }
-
-    AlertDialog(
