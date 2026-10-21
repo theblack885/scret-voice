@@ -78,8 +78,8 @@ class RecordingsUiActivity : ComponentActivity() {
 @Composable
 fun HideCameraMainScreen() {
     val ctx = LocalContext.current
-    var isCameraRunning by remember { mutableStateOf(false) }
-    var showPasscodeScreen by remember { mutableStateOf(false) }
+    var mCameraRunning by remember { mutableStateOf(false) }
+    var mShowPasscodeScreen by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -109,23 +109,23 @@ fun HideCameraMainScreen() {
                 Button(
                     onClick = {
                         val serviceIntent = Intent(ctx, BackgroundRecorderService::class.java)
-                        if (!isCameraRunning) {
+                        if (!mCameraRunning) {
                             if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                                 ctx.startService(serviceIntent)
-                                isCameraRunning = true
+                                mCameraRunning = true
                                 Toast.makeText(ctx, "Hidden Camera Engine Started", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(ctx, "Camera Permission Required!", Toast.LENGTH_LONG).show()
                             }
                         } else {
                             ctx.stopService(serviceIntent)
-                            isCameraRunning = false
+                            mCameraRunning = false
                             Toast.makeText(ctx, "Hidden Camera Engine Stopped", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isCameraRunning) Green else Rose)
+                    colors = ButtonDefaults.buttonColors(containerColor = if (mCameraRunning) Green else Rose)
                 ) {
-                    Text(if (isCameraRunning) "ACTIVE" else "START", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(if (mCameraRunning) "ACTIVE" else "START", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -133,7 +133,7 @@ fun HideCameraMainScreen() {
         Spacer(Modifier.height(20.dp))
 
         Button(
-            onClick = { showPasscodeScreen = true },
+            onClick = { mShowPasscodeScreen = true },
             modifier = Modifier.fillMaxWidth().height(55.dp),
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
@@ -141,12 +141,10 @@ fun HideCameraMainScreen() {
             Text("Open Secret Video Locker", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
-        if (showPasscodeScreen) {
+        if (mShowPasscodeScreen) {
             SecurePasscodeDialog(
-                onDismiss = { showPasscodeScreen = false },
-                onSuccess = {
-                    showPasscodeScreen = false
-                }
+                onDismiss = { mShowPasscodeScreen = false },
+                onSuccess = { mShowPasscodeScreen = false }
             )
         }
     }
@@ -211,7 +209,7 @@ fun SecurePasscodeDialog(onDismiss: () -> Unit, onSuccess: () -> Unit) {
                             val unlockTime = System.currentTimeMillis() + (24 * 60 * 60 * 1000)
                             prefs.edit().putLong("lockout_end_time", unlockTime).apply()
                             lockoutEndTime = unlockTime
-                            Toast.makeText(ctx, "Brute-force lockout triggered! App locked for 24 hours.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(ctx, "Security Lock Activated! App locked for 24 hours.", Toast.LENGTH_LONG).show()
                         } else {
                             val attemptsLeft = 5 - currentFailed
                             Toast.makeText(ctx, "Incorrect code! Attempts left: $attemptsLeft", Toast.LENGTH_SHORT).show()
@@ -240,3 +238,5 @@ fun SecureVideoGalleryView(onClose: () -> Unit) {
         val storageDir = ctx.getExternalFilesDir(null)
         privateVideos = storageDir?.listFiles { file -> file.name.startsWith("SEC_VID_") && file.name.endsWith(".mp4") }?.toList() ?: emptyList()
     }
+
+    AlertDialog(
