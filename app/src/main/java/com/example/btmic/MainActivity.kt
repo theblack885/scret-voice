@@ -19,14 +19,17 @@ class MainActivity : Activity() {
         Manifest.permission.RECORD_AUDIO
     )
 
-    private lateinit var toggleHideCamera: ToggleButton
-    private lateinit var btnViewSecureVideos: Button
+    private var toggleHideCamera: ToggleButton? = null
+    private var btnViewSecureVideos: Button? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        super.onCreate(savedInstanceState)
+        
+        // ZAROORI NOTE: Agar aapke layout file ka naam 'activity_main' nahi hai,
+        // toh niche apne asli layout ka naam set karein (jaise R.layout.your_layout_name)
+        setContentView(R.layout.activity_main)
 
-        // Standard findViewById framework bina kisi crash ke
+        // Null-safe findViewById framework taaki compile time par koi error na aaye
         toggleHideCamera = findViewById(R.id.toggleHideCamera)
         btnViewSecureVideos = findViewById(R.id.btnViewSecureVideos)
 
@@ -34,14 +37,15 @@ class MainActivity : Activity() {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
-        toggleHideCamera.setOnClickListener {
+        // Hide Camera option switch logic
+        toggleHideCamera?.setOnClickListener {
             val serviceIntent = Intent(this, BackgroundRecorderService::class.java)
-            if (toggleHideCamera.isChecked) {
+            if (toggleHideCamera?.isChecked == true) {
                 if (allPermissionsGranted()) {
                     startService(serviceIntent)
                     Toast.makeText(this, "Hidden Engine Started", Toast.LENGTH_SHORT).show()
                 } else {
-                    toggleHideCamera.isChecked = false
+                    toggleHideCamera?.isChecked = false
                     Toast.makeText(this, "Permissions required!", Toast.LENGTH_SHORT).show()
                 }
             } else {
@@ -50,7 +54,8 @@ class MainActivity : Activity() {
             }
         }
 
-        btnViewSecureVideos.setOnClickListener {
+        // Passcode entry verification activity trigger
+        btnViewSecureVideos?.setOnClickListener {
             val intent = Intent(this, PasscodeActivity::class.java)
             startActivity(intent)
         }
@@ -69,7 +74,7 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (!allPermissionsGranted()) {
-                Toast.makeText(this, "Permissions are required for this feature.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Permissions are required for this feature.", Toast.LENGTH_LONG).show()
             }
         }
     }
