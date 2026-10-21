@@ -1,6 +1,5 @@
-package com.example.hidecamera;
+package com.example.btmic; // Sahi package name
 
-// AndroidX ko hata kar standard Core Android Activity use ki hai
 import android.app.Activity;
 import android.content.ContentValues;
 import android.net.Uri;
@@ -16,10 +15,9 @@ public class VideoGalleryActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Secure Folder ki videos dekhne ke liye layout yahan set hoga
+        // Custom gallery design ke liye layout yahan set hoga
     }
 
-    // Is function se video secure app storage se nikal kar phone ki main gallery me save ho jayegi
     public void exportVideoToGallery(File privateVideoFile) {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Video.Media.TITLE, privateVideoFile.getName());
