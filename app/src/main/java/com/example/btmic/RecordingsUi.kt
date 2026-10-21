@@ -31,6 +31,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -51,7 +52,6 @@ val Rose = Color(0xFFFF6B8B)
 val Green = Color(0xFF2ED573)
 val Cyan = Color(0xFF1E90FF)
 
-// Aapke purane error ko hatane ke liye Glass component ko standard compose layout se define kiya gaya hai
 @Composable
 fun Glass(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
@@ -66,12 +66,10 @@ fun Glass(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     }
 }
 
-// Main entrance activity setup
 class RecordingsUiActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Yahan se aapki screen control hogi jisme secure panel added hai
             HideCameraMainScreen()
         }
     }
@@ -83,15 +81,10 @@ fun HideCameraMainScreen() {
     var isCameraRunning by remember { mutableStateOf(false) }
     var showPasscodeScreen by remember { mutableStateOf(false) }
 
-    // App ke khulte hi check karein ki background recording active hai ya nahi
-    LaunchedEffect(Unit) {
-        // App settings context tracking logic
-    }
-
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0C20)) // Dark mode theme matching your project
+            .background(Color(0xFF0F0C20))
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -102,7 +95,6 @@ fun HideCameraMainScreen() {
         
         Spacer(Modifier.height(40.dp))
 
-        // 1. Hide Camera Option Toggle Switch Button
         Glass {
             Row(
                 Modifier.fillMaxWidth(),
@@ -118,7 +110,6 @@ fun HideCameraMainScreen() {
                     onClick = {
                         val serviceIntent = Intent(ctx, BackgroundRecorderService::class.java)
                         if (!isCameraRunning) {
-                            // Permission confirmation check before trigger
                             if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                                 ctx.startService(serviceIntent)
                                 isCameraRunning = true
@@ -141,7 +132,6 @@ fun HideCameraMainScreen() {
 
         Spacer(Modifier.height(20.dp))
 
-        // 2. Secret Vault Viewer Action Launcher Button
         Button(
             onClick = { showPasscodeScreen = true },
             modifier = Modifier.fillMaxWidth().height(55.dp),
@@ -151,13 +141,11 @@ fun HideCameraMainScreen() {
             Text("Open Secret Video Locker", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
-        // Custom Overlay logic to switch into secure layout panel
         if (showPasscodeScreen) {
             SecurePasscodeDialog(
                 onDismiss = { showPasscodeScreen = false },
                 onSuccess = {
                     showPasscodeScreen = false
-                    // Success logic inside context container
                 }
             )
         }
@@ -231,3 +219,24 @@ fun SecurePasscodeDialog(onDismiss: () -> Unit, onSuccess: () -> Unit) {
                     }
                 }) {
                     Text("Verify", color = Green, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { onDismiss() }) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.5f))
+            }
+        }
+    )
+}
+
+@Composable
+fun SecureVideoGalleryView(onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    var privateVideos by remember { mutableStateOf(listOf<File>()) }
+    var refreshTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refreshTick) {
+        val storageDir = ctx.getExternalFilesDir(null)
+        privateVideos = storageDir?.listFiles { file -> file.name.startsWith("SEC_VID_") && file.name.endsWith(".mp4") }?.toList() ?: emptyList()
+    }
