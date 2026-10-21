@@ -1,4 +1,4 @@
-package com.example.hidecamera;
+package com.example.btmic; // Sahi package name
 
 import android.app.Activity;
 import android.content.Intent;
@@ -9,9 +9,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
-// Sabse zaroori line: Aapke main app ke resources (R) ko import kiya gaya hai
-import com.example.btmic.R;
 
 public class PasscodeActivity extends Activity {
     private static final String MASTER_CODE = "1615";
@@ -87,3 +84,4 @@ public class PasscodeActivity extends Activity {
         }
     }
 }
+
