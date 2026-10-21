@@ -1,24 +1,25 @@
 package com.example.hidecamera;
 
+// AndroidX ko hata kar standard Core Android Activity use ki hai
+import android.app.Activity;
 import android.content.ContentValues;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.widget.Toast;
-import androidx.appcompat.app.AppCompatActivity;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.OutputStream;
 
-public class VideoGalleryActivity extends AppCompatActivity {
+public class VideoGalleryActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Is Activity me aap Recycler View laga kar getExternalFilesDir(null) se files list kar sakte hain.
+        // Secure Folder ki videos dekhne ke liye layout yahan set hoga
     }
 
-    // Is function ko tab trigger karein jab user kisi video ke "Save to Phone File/Gallery" button par click kare
+    // Is function se video secure app storage se nikal kar phone ki main gallery me save ho jayegi
     public void exportVideoToGallery(File privateVideoFile) {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Video.Media.TITLE, privateVideoFile.getName());
@@ -32,7 +33,6 @@ public class VideoGalleryActivity extends AppCompatActivity {
         Uri videoUri = getContentResolver().insert(collection, values);
 
         if (videoUri != null) {
-            // Yahan par byte array ka syntax bilkul sahi kar diya gaya hai (1024 size ke sath)
             try (OutputStream out = getContentResolver().openOutputStream(videoUri);
                  FileInputStream in = new FileInputStream(privateVideoFile)) {
                 
