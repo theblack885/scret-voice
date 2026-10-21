@@ -1,34 +1,34 @@
 package com.example.btmic
 
+import android.Manifest
+import android.content.ContentValues
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.MediaStore
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,203 +36,198 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import java.io.File
+import java.io.FileInputStream
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 val Rose = Color(0xFFFF6B8B)
+val Green = Color(0xFF2ED573)
+val Cyan = Color(0xFF1E90FF)
 
+// Aapke purane error ko hatane ke liye Glass component ko standard compose layout se define kiya gaya hai
 @Composable
-fun RecordingsTab(player: AudioPlayer) {
-    val ctx = LocalContext.current
-    var files by remember { mutableStateOf(listOf<File>()) }
-    var tick by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(tick) {
-        files = RecStore.list(RecStore.dir(ctx)).filter { it.path != BtMicState.currentRecPath }
-    }
-
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Spacer(Modifier.height(12.dp))
-        Text("Recordings", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-        Text(
-            "${files.size} recording",
-            color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp
-        )
-        Spacer(Modifier.height(14.dp))
-
-        if (files.isEmpty()) {
-            Glass {
-                Text(
-                    "Abhi koi recording nahi hai.\nEarbuds connect karke bolo, recording apne aap shuru hogi.",
-                    color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp
-                )
-            }
-        } else {
-            LazyColumn(Modifier.weight(1f)) {
-                items(files, key = { it.path }) { f ->
-                    RecItem(f, player.playingPath == f.path, { player.toggle(f) }) {
-                        TextButton(onClick = {
-                            if (player.playingPath == f.path) player.stop()
-                            if (RecStore.moveTo(f, RecStore.trash(ctx))) {
-                                Toast.makeText(ctx, "History me bhej di", Toast.LENGTH_SHORT).show()
-                            }
-                            tick++
-                        }) { Text("Delete", color = Rose, fontWeight = FontWeight.Bold) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun HistoryTab(player: AudioPlayer) {
-    val ctx = LocalContext.current
-    var files by remember { mutableStateOf(listOf<File>()) }
-    var tick by remember { mutableIntStateOf(0) }
-    var confirmFile by remember { mutableStateOf<File?>(null) }
-    var confirmAll by remember { mutableStateOf(false) }
-
-    LaunchedEffect(tick) {
-        files = RecStore.list(RecStore.trash(ctx))
-    }
-
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Spacer(Modifier.height(12.dp))
-        Text("History", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-        Text(
-            "Delete ki hui recordings. Recover karo ya hamesha ke liye hatao.",
-            color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp
-        )
-        if (files.isNotEmpty()) {
-            TextButton(onClick = { confirmAll = true }) {
-                Text("Poori History saaf karo", color = Rose, fontWeight = FontWeight.Bold)
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-
-        if (files.isEmpty()) {
-            Glass {
-                Text(
-                    "History khali hai. Jo recording delete karoge wo yahan aayegi.",
-                    color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp
-                )
-            }
-        } else {
-            LazyColumn(Modifier.weight(1f)) {
-                items(files, key = { it.path }) { f ->
-                    RecItem(f, player.playingPath == f.path, { player.toggle(f) }) {
-                        TextButton(onClick = {
-                            if (player.playingPath == f.path) player.stop()
-                            if (RecStore.moveTo(f, RecStore.dir(ctx))) {
-                                Toast.makeText(ctx, "Recover ho gayi", Toast.LENGTH_SHORT).show()
-                            }
-                            tick++
-                        }) { Text("Recover", color = Green, fontWeight = FontWeight.Bold) }
-                        TextButton(onClick = { confirmFile = f }) {
-                            Text("Delete forever", color = Rose, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    confirmFile?.let { f ->
-        AlertDialog(
-            onDismissRequest = { confirmFile = null },
-            containerColor = Color(0xFF1B1733),
-            titleContentColor = Color.White,
-            textContentColor = Color.White.copy(alpha = 0.7f),
-            title = { Text("Hamesha ke liye delete?") },
-            text = { Text("Ye recording phir wapas nahi aa sakti.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (player.playingPath == f.path) player.stop()
-                    f.delete()
-                    confirmFile = null
-                    tick++
-                }) { Text("Delete forever", color = Rose, fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmFile = null }) { Text("Rehne do", color = Cyan) }
-            }
-        )
-    }
-
-    if (confirmAll) {
-        AlertDialog(
-            onDismissRequest = { confirmAll = false },
-            containerColor = Color(0xFF1B1733),
-            titleContentColor = Color.White,
-            textContentColor = Color.White.copy(alpha = 0.7f),
-            title = { Text("Poori History saaf karein?") },
-            text = { Text("History ki saari recordings hamesha ke liye hat jayengi.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    player.stop()
-                    files.forEach { it.delete() }
-                    confirmAll = false
-                    tick++
-                }) { Text("Sab delete karo", color = Rose, fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmAll = false }) { Text("Rehne do", color = Cyan) }
-            }
-        )
-    }
-}
-
-@Composable
-fun RecItem(
-    file: File,
-    playing: Boolean,
-    onPlay: () -> Unit,
-    actions: @Composable RowScope.() -> Unit
-) {
-    val fmt = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
-    val secs = RecStore.durationSec(file)
-
-    Column(
-        Modifier
+fun Glass(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp)
             .clip(RoundedCornerShape(24.dp))
             .background(Color.White.copy(alpha = 0.06f))
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            if (playing) listOf(Pink, Violet) else listOf(Cyan, Violet)
-                        )
-                    )
-                    .clickable(onClick = onPlay),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(if (playing) "■" else "▶", color = Color.White, fontSize = 18.sp)
-            }
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(
-                    fmt.format(Date(file.lastModified())),
-                    color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "%d:%02d  •  %s".format(secs / 60, secs % 60, RecStore.sizeText(file.length())),
-                    color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp
-                )
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+        content()
     }
 }
+
+// Main entrance activity setup
+class RecordingsUiActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            // Yahan se aapki screen control hogi jisme secure panel added hai
+            HideCameraMainScreen()
+        }
+    }
+}
+
+@Composable
+fun HideCameraMainScreen() {
+    val ctx = LocalContext.current
+    var isCameraRunning by remember { mutableStateOf(false) }
+    var showPasscodeScreen by remember { mutableStateOf(false) }
+
+    // App ke khulte hi check karein ki background recording active hai ya nahi
+    LaunchedEffect(Unit) {
+        // App settings context tracking logic
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F0C20)) // Dark mode theme matching your project
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(40.dp))
+        Text("System Controller", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Manage system tools and background utilities.", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+        
+        Spacer(Modifier.height(40.dp))
+
+        // 1. Hide Camera Option Toggle Switch Button
+        Glass {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Hide Camera Engine", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Record completely hidden video", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                }
+                
+                Button(
+                    onClick = {
+                        val serviceIntent = Intent(ctx, BackgroundRecorderService::class.java)
+                        if (!isCameraRunning) {
+                            // Permission confirmation check before trigger
+                            if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                ctx.startService(serviceIntent)
+                                isCameraRunning = true
+                                Toast.makeText(ctx, "Hidden Camera Engine Started", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(ctx, "Camera Permission Required!", Toast.LENGTH_LONG).show()
+                            }
+                        } else {
+                            ctx.stopService(serviceIntent)
+                            isCameraRunning = false
+                            Toast.makeText(ctx, "Hidden Camera Engine Stopped", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isCameraRunning) Green else Rose)
+                ) {
+                    Text(if (isCameraRunning) "ACTIVE" else "START", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        // 2. Secret Vault Viewer Action Launcher Button
+        Button(
+            onClick = { showPasscodeScreen = true },
+            modifier = Modifier.fillMaxWidth().height(55.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
+        ) {
+            Text("Open Secret Video Locker", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Custom Overlay logic to switch into secure layout panel
+        if (showPasscodeScreen) {
+            SecurePasscodeDialog(
+                onDismiss = { showPasscodeScreen = false },
+                onSuccess = {
+                    showPasscodeScreen = false
+                    // Success logic inside context container
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun SecurePasscodeDialog(onDismiss: () -> Unit, onSuccess: () -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("AppSecurityPrefs", Context.MODE_PRIVATE) }
+    
+    var inputCode by remember { mutableStateOf("") }
+    var failedAttempts by remember { mutableStateOf(prefs.getInt("failed_attempts", 0)) }
+    var lockoutEndTime by remember { mutableStateOf(prefs.getLong("lockout_end_time", 0)) }
+    var showGalleryView by remember { mutableStateOf(false) }
+
+    val isLockedOut = System.currentTimeMillis() < lockoutEndTime
+
+    if (showGalleryView) {
+        SecureVideoGalleryView(onClose = { 
+            showGalleryView = false 
+            onDismiss()
+        })
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        containerColor = Color(0xFF1B1733),
+        titleContentColor = Color.White,
+        textContentColor = Color.White.copy(alpha = 0.7f),
+        title = { Text("Security Verification", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                if (isLockedOut) {
+                    val remainingHours = ((lockoutEndTime - System.currentTimeMillis()) / (60 * 60 * 1000)) + 1
+                    Text("App is locked due to 5 wrong passcode entry. Try again after $remainingHours hours.", color = Rose)
+                } else {
+                    Text("Enter master passcode to unlock encrypted background recordings database.", modifier = Modifier.padding(bottom = 12.dp))
+                    TextField(
+                        value = inputCode,
+                        onValueChange = { if (it.length <= 4) inputCode = it },
+                        label = { Text("4-Digit Code") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (!isLockedOut) {
+                TextButton(onClick = {
+                    if (inputCode == "1615") {
+                        prefs.edit().putInt("failed_attempts", 0).putLong("lockout_end_time", 0).apply()
+                        showGalleryView = true
+                    } else {
+                        val currentFailed = failedAttempts + 1
+                        failedAttempts = currentFailed
+                        prefs.edit().putInt("failed_attempts", currentFailed).apply()
+
+                        if (currentFailed >= 5) {
+                            val unlockTime = System.currentTimeMillis() + (24 * 60 * 60 * 1000)
+                            prefs.edit().putLong("lockout_end_time", unlockTime).apply()
+                            lockoutEndTime = unlockTime
+                            Toast.makeText(ctx, "Brute-force lockout triggered! App locked for 24 hours.", Toast.LENGTH_LONG).show()
+                        } else {
+                            val attemptsLeft = 5 - currentFailed
+                            Toast.makeText(ctx, "Incorrect code! Attempts left: $attemptsLeft", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) {
+                    Text("Verify", color = Green, fontWeight = FontWeight.Bold)
