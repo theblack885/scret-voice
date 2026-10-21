@@ -1,88 +1,79 @@
-package com.example.hidecamera;
+package com.example.btmic
 
-import android.Manifest;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.Bundle;
-import android.view.View;
-import android.widget.Button;
-import android.widget.Toast;
-import android.widget.ToggleButton;
-import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.view.View
+import android.widget.Button
+import android.widget.Toast
+import android.widget.ToggleButton
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
-// Standard Activity support
-import android.app.Activity;
+class MainActivity : Activity() {
 
-// Sabse zaroori line: Aapke main app ke resources (R) ko import kiya gaya hai
-import com.example.btmic.R;
+    private val REQUEST_CODE_PERMISSIONS = 200
+    private val REQUIRED_PERMISSIONS = arrayOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.RECORD_AUDIO
+    )
 
-public class MainActivity extends Activity {
-    private static final int REQUEST_CODE_PERMISSIONS = 200;
-    private final String[] REQUIRED_PERMISSIONS = new String[]{
-            Manifest.permission.CAMERA, 
-            Manifest.permission.RECORD_AUDIO
-    };
+    private lateinit var toggleHideCamera: ToggleButton
+    private lateinit var btnViewSecureVideos: Button
 
-    private ToggleButton toggleHideCamera;
-    private Button btnViewSecureVideos;
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main); 
+        // UI Components ko link kar rahe hain
+        toggleHideCamera = findViewById(R.id.toggleHideCamera)
+        btnViewSecureVideos = findViewById(R.id.btnViewSecureVideos)
 
-        toggleHideCamera = findViewById(R.id.toggleHideCamera); 
-        btnViewSecureVideos = findViewById(R.id.btnViewSecureVideos);
-
+        // Permissions check kar rahe hain
         if (!allPermissionsGranted()) {
-            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
-        toggleHideCamera.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent serviceIntent = new Intent(MainActivity.this, BackgroundRecorderService.class);
-                if (toggleHideCamera.isChecked()) {
-                    if (allPermissionsGranted()) {
-                        startService(serviceIntent);
-                        Toast.makeText(MainActivity.this, "Hidden Engine Started", Toast.LENGTH_SHORT).show();
-                    } else {
-                        toggleHideCamera.setChecked(false);
-                        Toast.makeText(MainActivity.this, "Permissions required!", Toast.LENGTH_SHORT).show();
-                    }
+        // Hide Camera Option ko ON/OFF karne ka logic
+        toggleHideCamera.setOnClickListener {
+            val serviceIntent = Intent(this, BackgroundRecorderService::class.java)
+            if (toggleHideCamera.isChecked) {
+                if (allPermissionsGranted()) {
+                    startService(serviceIntent)
+                    Toast.makeText(this, "Hidden Engine Started", Toast.LENGTH_SHORT).show()
                 } else {
-                    stopService(serviceIntent);
-                    Toast.makeText(MainActivity.this, "Hidden Engine Stopped", Toast.LENGTH_SHORT).show();
+                    toggleHideCamera.isChecked = false
+                    Toast.makeText(this, "Permissions required!", Toast.LENGTH_SHORT).show()
                 }
-            }
-        });
-
-        btnViewSecureVideos.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(MainActivity.this, PasscodeActivity.class);
-                startActivity(intent);
-            }
-        });
-    }
-
-    private boolean allPermissionsGranted() {
-        for (String permission : REQUIRED_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                return false;
+            } else {
+                stopService(serviceIntent)
+                Toast.makeText(this, "Hidden Engine Stopped", Toast.LENGTH_SHORT).show()
             }
         }
-        return true;
+
+        // Secure Videos dekhne ke liye Password Lock Screen kholne ka logic
+        btnViewSecureVideos.setOnClickListener {
+            val intent = Intent(this, PasscodeActivity::class.java)
+            startActivity(intent)
+        }
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    private fun allPermissionsGranted(): Boolean {
+        for (permission in REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false
+            }
+        }
+        return true
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (!allPermissionsGranted()) {
-                Toast.makeText(this, "Permissions are required for this feature.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Permissions are required for this feature.", Toast.LENGTH_LONG).show()
             }
         }
     }
