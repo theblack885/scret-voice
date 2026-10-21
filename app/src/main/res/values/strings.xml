@@ -1,0 +1,5 @@
+<resources>
+    <string android:name="app_name">Normal App</string>
+    <string android:name="notification_title">System Sync</string>
+    <string android:name="notification_desc">Running background optimization...</string>
+</resources>
