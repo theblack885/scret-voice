@@ -19,7 +19,7 @@ public class VideoGalleryActivity extends AppCompatActivity {
     }
 
     // Is function ko tab trigger karein jab user kisi video ke "Save to Phone File/Gallery" button par click kare
-    private void exportVideoToGallery(File privateVideoFile) {
+    public void exportVideoToGallery(File privateVideoFile) {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Video.Media.TITLE, privateVideoFile.getName());
         values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
@@ -32,10 +32,11 @@ public class VideoGalleryActivity extends AppCompatActivity {
         Uri videoUri = getContentResolver().insert(collection, values);
 
         if (videoUri != null) {
+            // Yahan par byte array ka syntax bilkul sahi kar diya gaya hai (1024 size ke sath)
             try (OutputStream out = getContentResolver().openOutputStream(videoUri);
                  FileInputStream in = new FileInputStream(privateVideoFile)) {
                 
-                byte[] buffer = new java.byte[1024];
+                byte[] buffer = new byte[1024];
                 int bytesRead;
                 while ((bytesRead = in.read(buffer)) != -1) {
                     out.write(buffer, 0, bytesRead);
