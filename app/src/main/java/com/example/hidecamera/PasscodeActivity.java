@@ -1,5 +1,7 @@
 package com.example.hidecamera;
 
+// AndroidX ko hata kar standard Core Android Activity use ki hai
+import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -8,9 +10,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-import androidx.appcompat.app.AppCompatActivity;
 
-public class PasscodeActivity extends AppCompatActivity {
+public class PasscodeActivity extends Activity {
     private static final String MASTER_CODE = "1615";
     private static final int MAX_ATTEMPTS = 5;
     private static final long LOCK_TIME_MS = 24 * 60 * 60 * 1000; // 24 Ghante
@@ -63,10 +64,9 @@ public class PasscodeActivity extends AppCompatActivity {
 
         String input = etPasscode.getText().toString();
         if (input.equals(MASTER_CODE)) {
-            // Sahi password dalne par locks reset honge
             prefs.edit().putInt("failed_attempts", 0).putLong("lockout_end_time", 0).apply();
             
-            // Video storage view open hoga
+            // Sahi code par video gallery activity open hogi
             Intent intent = new Intent(PasscodeActivity.this, VideoGalleryActivity.class);
             startActivity(intent);
             finish();
