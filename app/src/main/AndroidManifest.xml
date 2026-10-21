@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://android.com">
 
-    <!-- Permissions required for Background Video Recording (Syntax Errors Fixed) -->
+    <!-- Permissions required for Background Video Recording -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -16,7 +16,7 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
-        <!-- Main Launcher Screen Setup -->
+        <!-- Main Launcher Screen (Bina kisi Resource Dependency ke) -->
         <activity
             android:name="com.example.btmic.MainActivity"
             android:exported="true">
@@ -26,12 +26,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Main Jetpack Compose Screen Setup -->
+        <!-- Main Jetpack Compose Screen -->
         <activity 
             android:name="com.example.btmic.RecordingsUiActivity"
             android:exported="false" />
 
-        <!-- Background Video Recorder Engine Service -->
+        <!-- Background Video Recorder Service -->
         <service
             android:name="com.example.btmic.BackgroundRecorderService"
             android:enabled="true"
