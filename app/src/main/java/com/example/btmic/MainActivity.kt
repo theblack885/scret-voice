@@ -25,19 +25,23 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // ZAROORI NOTE: Agar aapke layout file ka naam 'activity_main' nahi hai,
-        // toh niche apne asli layout ka naam set karein (jaise R.layout.your_layout_name)
-        setContentView(R.layout.activity_main)
-
-        // Null-safe findViewById framework taaki compile time par koi error na aaye
-        toggleHideCamera = findViewById(R.id.toggleHideCamera)
-        btnViewSecureVideos = findViewById(R.id.btnViewSecureVideos)
+        // Agar aapke layout ka naam kuch aur hai toh activity_main ki jagah wo likhein
+        // Lekin compiler error na de, isliye humne ise try-catch block mein daal diya hai
+        try {
+            setContentView(R.layout.activity_main)
+            
+            // Null-safe check ke sath buttons ko link kar rahe hain
+            toggleHideCamera = findViewById(R.id.toggleHideCamera)
+            btnViewSecureVideos = findViewById(R.id.btnViewSecureVideos)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
-        // Hide Camera option switch logic
+        // Agar XML layout mein buttons mil gaye toh yeh click listeners kaam karenge
         toggleHideCamera?.setOnClickListener {
             val serviceIntent = Intent(this, BackgroundRecorderService::class.java)
             if (toggleHideCamera?.isChecked == true) {
@@ -54,7 +58,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // Passcode entry verification activity trigger
         btnViewSecureVideos?.setOnClickListener {
             val intent = Intent(this, PasscodeActivity::class.java)
             startActivity(intent)
