@@ -1,5 +1,4 @@
-// Aapke asli app ke folder ke hisab se package name theek kar diya hai
-package com.example.hidecamera; 
+package com.example.btmic; // Sahi package name
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -16,9 +15,6 @@ import android.view.SurfaceView;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import java.io.File;
-
-// Sabse zaroori line: Aapke main app ke resources (R) ko import kiya gaya hai
-import com.example.btmic.R; 
 
 public class BackgroundRecorderService extends Service {
     private static final int NOTIFICATION_ID = 101;
